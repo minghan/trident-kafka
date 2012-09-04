@@ -10,24 +10,22 @@ import org.apache.log4j.Logger;
 import storm.trident.operation.TridentCollector;
 import storm.trident.spout.IOpaquePartitionedTridentSpout;
 import storm.trident.topology.TransactionAttempt;
-import trident.kafka.KafkaConfig.StaticHosts;
-
 
 public class OpaqueTridentKafkaSpout implements IOpaquePartitionedTridentSpout<Map> {
     public static final Logger LOG = Logger.getLogger(OpaqueTridentKafkaSpout.class);
-    
+
     KafkaConfig _config;
     String _topologyInstanceId = UUID.randomUUID().toString();
-    
+
     public OpaqueTridentKafkaSpout(KafkaConfig config) {
         _config = config;
     }
-    
+
     @Override
     public IOpaquePartitionedTridentSpout.Emitter<Map> getEmitter(Map conf, TopologyContext context) {
         return new Emitter();
     }
-    
+
     @Override
     public IOpaquePartitionedTridentSpout.Coordinator getCoordinator(Map map, TopologyContext tc) {
         return new Coordinator();
@@ -37,12 +35,12 @@ public class OpaqueTridentKafkaSpout implements IOpaquePartitionedTridentSpout<M
     public Fields getOutputFields() {
         return _config.scheme.getOutputFields();
     }    
-    
+
     @Override
     public Map<String, Object> getComponentConfiguration() {
         return null;
     }
-    
+
     class Coordinator implements IOpaquePartitionedTridentSpout.Coordinator {
         @Override
         public void close() {
@@ -54,10 +52,10 @@ public class OpaqueTridentKafkaSpout implements IOpaquePartitionedTridentSpout<M
             return _config.coordinator.isReady(txid);
         }
     }
-    
+
     class Emitter implements IOpaquePartitionedTridentSpout.Emitter<Map> {
         StaticPartitionConnections _connections;
-        
+
         public Emitter() {
             _connections = new StaticPartitionConnections(_config);
         }
@@ -82,8 +80,7 @@ public class OpaqueTridentKafkaSpout implements IOpaquePartitionedTridentSpout<M
 
         @Override
         public long numPartitions() {
-            StaticHosts hosts = (StaticHosts) _config.hosts;
-            return hosts.hosts.size() * hosts.partitionsPerHost;
+            return _config.hosts.getTotalNumPartitions();
         }
 
         @Override

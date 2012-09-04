@@ -11,23 +11,20 @@ import kafka.message.MessageAndOffset;
 import storm.trident.operation.TridentCollector;
 import storm.trident.spout.IPartitionedTridentSpout;
 import storm.trident.topology.TransactionAttempt;
-import trident.kafka.KafkaConfig.StaticHosts;
-
 
 public class TransactionalTridentKafkaSpout implements IPartitionedTridentSpout<Map> {
-    
+
     KafkaConfig _config;
     String _topologyInstanceId = UUID.randomUUID().toString();
 
-    
     public TransactionalTridentKafkaSpout(KafkaConfig config) {
         _config = config;
     }
-    
+
     class Coordinator implements IPartitionedTridentSpout.Coordinator {
         @Override
         public long numPartitions() {
-            return computeNumPartitions();
+            return _config.hosts.getTotalNumPartitions();
         }
 
         @Override
@@ -40,17 +37,14 @@ public class TransactionalTridentKafkaSpout implements IPartitionedTridentSpout<
             return _config.coordinator.isReady(txid);
         }
     }
-    
+
     class Emitter implements IPartitionedTridentSpout.Emitter<Map> {
         StaticPartitionConnections _connections;
-        int partitionsPerHost;
-        
+
         public Emitter() {
             _connections = new StaticPartitionConnections(_config);
-            StaticHosts hosts = (StaticHosts) _config.hosts;
-            partitionsPerHost = hosts.partitionsPerHost;            
         }
-        
+
         @Override
         public Map emitPartitionBatchNew(TransactionAttempt attempt, TridentCollector collector, int partition, Map lastMeta) {
             SimpleConsumer consumer = _connections.getConsumer(partition);
@@ -65,7 +59,8 @@ public class TransactionalTridentKafkaSpout implements IPartitionedTridentSpout<
                 SimpleConsumer consumer = _connections.getConsumer(partition);
                 long offset = (Long) meta.get("offset");
                 long nextOffset = (Long) meta.get("nextOffset");
-                ByteBufferMessageSet msgs = consumer.fetch(new FetchRequest(_config.topic, partition % partitionsPerHost, offset, _config.fetchSizeBytes));
+                int localPartitionId = _config.hosts.getHostPartitionIdByGlobalPartitionId(partition);
+                ByteBufferMessageSet msgs = consumer.fetch(new FetchRequest(_config.topic, localPartitionId, offset, _config.fetchSizeBytes));
                 for(MessageAndOffset msg: msgs) {
                     if(offset == nextOffset) break;
                     if(offset > nextOffset) {
@@ -76,13 +71,12 @@ public class TransactionalTridentKafkaSpout implements IPartitionedTridentSpout<
                 }        
             }
         }
-        
+
         @Override
         public void close() {
             _connections.close();
         }
     }
-    
 
     @Override
     public IPartitionedTridentSpout.Coordinator getCoordinator(Map conf, TopologyContext context) {
@@ -98,12 +92,7 @@ public class TransactionalTridentKafkaSpout implements IPartitionedTridentSpout<
     public Fields getOutputFields() {
         return _config.scheme.getOutputFields();
     }
-    
-    private int computeNumPartitions() {
-        StaticHosts hosts =  _config.hosts;
-        return hosts.hosts.size() * hosts.partitionsPerHost;      
-    }
-    
+
     @Override
     public Map<String, Object> getComponentConfiguration() {
         return null;

@@ -1,4 +1,4 @@
-package trident.kafka;
+package trident.kafka.test;
 
 import backtype.storm.Config;
 import backtype.storm.LocalCluster;
@@ -11,7 +11,9 @@ import java.util.List;
 import storm.trident.TridentTopology;
 import storm.trident.operation.builtin.Count;
 import storm.trident.operation.builtin.Debug;
-
+import trident.kafka.KafkaConfig;
+import trident.kafka.StringScheme;
+import trident.kafka.TransactionalTridentKafkaSpout;
 
 public class Tester {
     public static void main(String[] args) throws Exception {

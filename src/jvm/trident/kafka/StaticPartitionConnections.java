@@ -3,41 +3,33 @@ package trident.kafka;
 import java.util.HashMap;
 import java.util.Map;
 import kafka.javaapi.consumer.SimpleConsumer;
-import trident.kafka.KafkaConfig.StaticHosts;
+import trident.kafka.KafkaConfig.KafkaHosts;
 
 public class StaticPartitionConnections {
-    Map<Integer, SimpleConsumer> _kafka = new HashMap<Integer, SimpleConsumer>();
+    // Mapping of HostPort to SimpleConsumer
+    Map<HostPort, SimpleConsumer> consumersMap = new HashMap<HostPort, SimpleConsumer>();
     KafkaConfig _config;
-    StaticHosts hosts;
+    KafkaHosts hosts;
     
     public StaticPartitionConnections(KafkaConfig conf) {
         _config = conf;
+        // TODO Do we need this?
         if(!(conf.hosts instanceof KafkaConfig.StaticHosts)) {
             throw new RuntimeException("Must configure with static hosts");
         }
-        this.hosts = (StaticHosts) conf.hosts;
+        this.hosts = conf.hosts;
     }
 
-    public SimpleConsumer getConsumer(int partition) {
-        int hostIndex = partition / hosts.partitionsPerHost;
-        if(!_kafka.containsKey(hostIndex)) {
-            HostPort hp = hosts.hosts.get(hostIndex);
-            _kafka.put(hostIndex, new SimpleConsumer(hp.host, hp.port, _config.socketTimeoutMs, _config.bufferSizeBytes));
-
+    public SimpleConsumer getConsumer(int partitionId) {
+        HostPort hp = hosts.getHostPortByGlobalPartitionId(partitionId);
+        if(!consumersMap.containsKey(hp)) {
+            consumersMap.put(hp, new SimpleConsumer(hp.host, hp.port, _config.socketTimeoutMs, _config.bufferSizeBytes));
         }
-        return _kafka.get(hostIndex);
-    }
-
-    public int getHostPartition(int globalPartition) {
-        return globalPartition % hosts.partitionsPerHost;
-    }
-
-    public int getNumberOfHosts() {
-        return hosts.hosts.size();
+        return consumersMap.get(hp);
     }
 
     public void close() {
-        for(SimpleConsumer consumer: _kafka.values()) {
+        for(SimpleConsumer consumer: consumersMap.values()) {
             consumer.close();
         }
     }
